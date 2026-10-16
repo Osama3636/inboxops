@@ -1,0 +1,106 @@
+name: inboxops
+
+services:
+  n8n-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_USER: ${N8N_DB_USER}
+      POSTGRES_PASSWORD: ${N8N_DB_PASSWORD}
+      POSTGRES_DB: n8n
+      INBOXOPS_DB_NAME: ${INBOXOPS_DB_NAME}
+      INBOXOPS_DB_USER: ${INBOXOPS_DB_USER}
+      INBOXOPS_DB_PASSWORD: ${INBOXOPS_DB_PASSWORD}
+    volumes:
+      - n8n_db_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      # Database connection
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: n8n-db
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: ${N8N_DB_USER}
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD}
+      # Core settings
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      GENERIC_TIMEZONE: ${TZ}
+      TZ: ${TZ}
+      # Delete execution history older than 14 days (336 hours)
+      EXECUTIONS_DATA_PRUNE: "true"
+      EXECUTIONS_DATA_MAX_AGE: 336
+      # Let workflows read the NON-SECRET settings below
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      # Non-secret app settings (one place to change the model)
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_PRICE_INPUT_PER_1M: ${LLM_PRICE_INPUT_PER_1M}
+      LLM_PRICE_OUTPUT_PER_1M: ${LLM_PRICE_OUTPUT_PER_1M}
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD}
+      MAX_EMAIL_CHARS: ${MAX_EMAIL_CHARS}
+      APPROVAL_TIMEOUT_HOURS: ${APPROVAL_TIMEOUT_HOURS}
+      ODOO_BASE_URL: http://odoo:8069
+      ODOO_DB_NAME: ${ODOO_DB_NAME}
+      APPROVER_EMAIL: ${APPROVER_EMAIL}
+      MAIL_FROM: ${MAIL_FROM}
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      n8n-db:
+        condition: service_healthy
+
+  # ---- Odoo (the ERP that InboxOps writes to, only after human approval) ----
+  odoo-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      # Odoo creates its own databases, so this role must be allowed to create them
+      POSTGRES_USER: ${ODOO_DB_USER}
+      POSTGRES_PASSWORD: ${ODOO_DB_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - odoo_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  odoo:
+    image: odoo:${ODOO_VERSION}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8069:8069"
+    environment:
+      # How Odoo finds its database server
+      HOST: odoo-db
+      USER: ${ODOO_DB_USER}
+      PASSWORD: ${ODOO_DB_PASSWORD}
+    volumes:
+      - odoo_data:/var/lib/odoo
+    depends_on:
+      odoo-db:
+        condition: service_healthy
+
+volumes:
+  n8n_db_data:
+  n8n_data:
+  odoo_db_data:
+  odoo_data:

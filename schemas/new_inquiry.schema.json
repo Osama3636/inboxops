@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "name": { "type": ["string", "null"], "maxLength": 100 },
+    "email": { "type": ["string", "null"], "maxLength": 254 },
+    "company": { "type": ["string", "null"], "maxLength": 150 },
+    "phone": { "type": ["string", "null"], "maxLength": 30 },
+    "request_summary": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "budget_if_mentioned": { "type": ["string", "null"], "maxLength": 100 }
+  },
+  "required": ["name", "email", "company", "phone", "request_summary", "budget_if_mentioned"],
+  "additionalProperties": false
+}

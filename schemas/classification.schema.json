@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "properties": {
+    "category": {
+      "type": "string",
+      "enum": [
+        "new_inquiry",
+        "quote_request",
+        "vendor_invoice",
+        "support_request",
+        "meeting_request",
+        "other"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "language": {
+      "type": "string",
+      "enum": ["en", "ar", "mixed", "other"]
+    },
+    "short_reason": {
+      "type": "string",
+      "maxLength": 200
+    }
+  },
+  "required": ["category", "confidence", "language", "short_reason"],
+  "additionalProperties": false
+}

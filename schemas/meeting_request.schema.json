@@ -1,0 +1,86 @@
+{
+  "type": "object",
+  "properties": {
+    "requester_name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 100
+    },
+    "requester_email": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 254
+    },
+    "topic": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "proposed_times": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 150
+          },
+          "start": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2})?$"
+          }
+        },
+        "required": [
+          "text",
+          "start"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "attendees": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 254
+          }
+        },
+        "required": [
+          "name",
+          "email"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "requester_name",
+    "requester_email",
+    "topic",
+    "proposed_times",
+    "attendees"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,9 @@
+.env
+*.log
+__pycache__/
+.venv/
+.DS_Store
+Thumbs.db
+eval/private/
+node_modules/
+.vscode/

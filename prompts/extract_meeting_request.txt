@@ -1,0 +1,20 @@
+This email was classified as a meeting request: someone asking to schedule, move or confirm a meeting or call. Extract these fields:
+
+- requester_name: the name of the person asking. null if not given.
+- requester_email: their email address. Use the From line address unless the email body clearly gives a different contact address for the same person. null if neither is available.
+- topic: what the meeting is about, in one short English sentence. Never null, never longer than 200 characters.
+- proposed_times: a list with one entry per time the sender suggests. Each entry has:
+  - text: the time exactly as written.
+  - start: the start as YYYY-MM-DDTHH:MM in 24-hour time (for example 2026-10-13T14:00), in the same time zone as the Received line. If only the date is clear, use YYYY-MM-DD. null if the date cannot be worked out for certain. Use the Received line for the year and for words like "tomorrow" or "next Tuesday".
+  If no time is suggested, use an empty list [].
+- attendees: a list of the people who will attend, including the sender and anyone the sender says will join. Each entry has name and email (null when not given). If no one is named, use an empty list [].
+
+Example 1 (not a real email):
+Email (Received: Fri 9 Oct 2026): "Hi, this is Rana from Orbit Media. Could we have a call next Tuesday at 2pm or Wednesday morning at 10:00 to talk about a rebrand? Mark from our team will join."
+Output: {"requester_name":"Rana","requester_email":null,"topic":"Discussion of a rebrand project.","proposed_times":[{"text":"next Tuesday at 2pm","start":"2026-10-13T14:00"},{"text":"Wednesday morning at 10:00","start":"2026-10-14T10:00"}],"attendees":[{"name":"Rana","email":null},{"name":"Mark","email":null}]}
+
+Example 2 (not a real email):
+Email (Received: Fri 9 Oct 2026): "أهلا، أنا يوسف من شركة الأفق. ينفع نعمل اجتماع يوم الأحد 18 أكتوبر 2026 الساعة 11 صباحا لمناقشة العقد؟"
+Output: {"requester_name":"يوسف","requester_email":null,"topic":"Discussion of the contract.","proposed_times":[{"text":"يوم الأحد 18 أكتوبر 2026 الساعة 11 صباحا","start":"2026-10-18T11:00"}],"attendees":[{"name":"يوسف","email":null}]}
+
+The examples show only the email body. The real input also has From and Subject lines and a Received date.

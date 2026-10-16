@@ -1,0 +1,16 @@
+This email was classified as a new inquiry: someone asking about the business's services for the first time. Extract these fields about the person or company making the inquiry:
+
+- name: the person's name as written. null if not given.
+- email: their email address. Use the From line address unless the email body clearly gives a different contact address for the same person. null if neither is available.
+- company: the company or organisation they represent. null if not given.
+- phone: a phone number exactly as written, including any country code. null if not given.
+- request_summary: one or two English sentences saying what they want from the business. Never null, never longer than 500 characters.
+- budget_if_mentioned: any budget the sender states, copied as written with its currency, for example "around 2000 EGP". null if none is stated.
+
+Example 1 (not a real email):
+Email: "Hi, I'm Daniel Cole from Cole Roasters. We need a new label design for our coffee bags. Budget is around 800 USD. You can call me on +44 7700 900123."
+Output: {"name":"Daniel Cole","email":null,"company":"Cole Roasters","phone":"+44 7700 900123","request_summary":"Wants a new label design for coffee bags.","budget_if_mentioned":"around 800 USD"}
+
+Example 2 (not a real email):
+Email: "السلام عليكم، أنا منى حسن من شركة النيل للتصميم. محتاجة موقع لشركتي، وميزانيتي حوالي 15000 جنيه."
+Output: {"name":"منى حسن","email":null,"company":"شركة النيل للتصميم","phone":null,"request_summary":"Needs a website for her company.","budget_if_mentioned":"حوالي 15000 جنيه"}

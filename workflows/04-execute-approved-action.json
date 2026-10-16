@@ -1,0 +1,381 @@
+{
+  "name": "04 - Execute Approved Action",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "78206452-1a63-4982-b784-3879befa15f3",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        208
+      ],
+      "id": "e841ba11-bf53-4f6f-9595-2109bf603bb3",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "32f53cc7-dc45-4825-b9de-c154c5028ab2",
+              "name": "run_id",
+              "value": 15,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        192,
+        208
+      ],
+      "id": "de459d64-34f0-4f40-974f-0a65f80d3501",
+      "name": "Manual Run Input"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH claimed AS (\n  UPDATE agent_runs\n  SET status = 'executing'\n  WHERE id = $1::bigint AND status = 'approved'\n  RETURNING id\n)\nSELECT c.id AS run_id, a.final_action\nFROM claimed c\nJOIN approvals a ON a.run_id = c.id AND a.state = 'approved'\nORDER BY a.id DESC\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.run_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        400,
+        80
+      ],
+      "id": "f6dab695-286f-4452-a1df-fe0165602ea7",
+      "name": "Claim Run",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "MhZHDzAy64LfOvDJ",
+          "name": "InboxOps Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "0c57c274-370d-4c4f-9075-b140244e92d2",
+              "leftValue": "={{ $json.run_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        624,
+        80
+      ],
+      "id": "034156da-1531-4116-83fd-12437b4cbe19",
+      "name": "Claimed?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        848,
+        176
+      ],
+      "id": "21979702-2343-4917-a2a3-93c6e4c9b450",
+      "name": "Not Executable (not approved or already executed)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build Odoo Calls: re-checks the approved action against the allowlist,\n// then turns each step into one request for the HTTP node.\n\nconst ALLOWED = {\n  'crm.lead': {\n    methods: ['create'],\n    fields: ['name', 'type', 'contact_name', 'partner_name', 'email_from', 'phone', 'description', 'partner_id']\n  }\n};\n\nconst row = $input.first().json;\nconst action = row.final_action;\n\nif (!action || !Array.isArray(action.steps) || action.steps.length !== 1) {\n  throw new Error('Approved action is missing or has an invalid list of steps');\n}\n\nreturn action.steps.map(step => {\n  const rule = ALLOWED[step.model];\n  if (!rule || !rule.methods.includes(step.method)) {\n    throw new Error('Action not allowed: ' + step.model + '.' + step.method);\n  }\n  if (!step.vals || typeof step.vals !== 'object' || Array.isArray(step.vals)) {\n    throw new Error('Step has no values: ' + step.model);\n  }\n  for (const [key, value] of Object.entries(step.vals)) {\n    if (!rule.fields.includes(key)) {\n      throw new Error('Field not allowed: ' + step.model + '.' + key);\n    }\n    const okType = typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value));\n    if (!okType) {\n      throw new Error('Unexpected value type for ' + key);\n    }\n    if (typeof value === 'string' && value.length > 5000) {\n      throw new Error('Value too long for ' + key);\n    }\n  }\n  return {\n    json: {\n      run_id: String(row.run_id),\n      ref: String(step.ref || step.model),\n      model: step.model,\n      method: step.method,\n      body: { vals_list: [step.vals] }\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -16
+      ],
+      "id": "681d59c3-5009-4443-860d-4d971296df10",
+      "name": "Build Odoo Calls"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ODOO_BASE_URL }}/json/2/{{ $json.model }}/{{ $json.method }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Odoo-Database",
+              "value": "={{ $env.ODOO_DB_NAME }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1072,
+        -16
+      ],
+      "id": "b57d06a3-d6d9-47ac-b7d4-561a69ac3a67",
+      "name": "Odoo Create",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "hrUVqAONw9zLBmqb",
+          "name": "InboxOps Odoo (Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Prepare Save: reads the new record id from Odoo's answer and checks it.\nconst step = $('Build Odoo Calls').item.json;\n\nlet ids;\ntry {\n  ids = JSON.parse($json.data);\n} catch (e) {\n  throw new Error('Odoo answer was not valid JSON');\n}\nif (!Array.isArray(ids) || ids.length !== 1 || !Number.isInteger(ids[0]) || ids[0] <= 0) {\n  throw new Error('Unexpected answer from Odoo create');\n}\n\nreturn {\n  json: {\n    run_id: step.run_id,\n    records_json: JSON.stringify([{\n      model: step.model,\n      id: ids[0],\n      ref: step.ref,\n      created_at: new Date().toISOString()\n    }])\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        -96
+      ],
+      "id": "1317dcf0-5386-4e07-b5d9-15176426ab46",
+      "name": "Prepare Save"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE agent_runs\nSET odoo_records = odoo_records || $2::jsonb,\n    status = 'executed',\n    finished_at = now()\nWHERE id = $1::bigint AND status = 'executing'\nRETURNING id, status, odoo_records;",
+        "options": {
+          "queryReplacement": "={{ [ $json.run_id, $json.records_json ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1520,
+        -96
+      ],
+      "id": "d5dfa695-77ff-4bdf-a235-6834c1c653e4",
+      "name": "Save Result",
+      "credentials": {
+        "postgres": {
+          "id": "MhZHDzAy64LfOvDJ",
+          "name": "InboxOps Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Prepare Failure: turns the error into a short message for the run record.\nconst step = $('Build Odoo Calls').item.json;\nconst e = $json.error;\nconst msg = typeof e === 'string' ? e : (e && e.message ? e.message : JSON.stringify(e || $json));\nreturn {\n  json: {\n    run_id: step.run_id,\n    error_message: ('Odoo call failed: ' + msg).slice(0, 500)\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        80
+      ],
+      "id": "8d3a42f1-b0c4-4aef-a264-4859074e854a",
+      "name": "Prepare Failure"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE agent_runs\nSET status = 'failed', error_message = $2, finished_at = now()\nWHERE id = $1::bigint AND status = 'executing'\nRETURNING id, status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.run_id, $json.error_message ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1520,
+        80
+      ],
+      "id": "a18b5919-81c3-4ef3-92d6-b0a00ac80dde",
+      "name": "Mark Failed",
+      "credentials": {
+        "postgres": {
+          "id": "MhZHDzAy64LfOvDJ",
+          "name": "InboxOps Postgres"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Manual Run Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Run Input": {
+      "main": [
+        [
+          {
+            "node": "Claim Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Claim Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Run": {
+      "main": [
+        [
+          {
+            "node": "Claimed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claimed?": {
+      "main": [
+        [
+          {
+            "node": "Build Odoo Calls",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Not Executable (not approved or already executed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Odoo Calls": {
+      "main": [
+        [
+          {
+            "node": "Odoo Create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Odoo Create": {
+      "main": [
+        [
+          {
+            "node": "Prepare Save",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Save": {
+      "main": [
+        [
+          {
+            "node": "Save Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Failure": {
+      "main": [
+        [
+          {
+            "node": "Mark Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "9821dee4-ab8c-43fd-82d2-02ab776c0bea",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "71c7a54a33468da155a74a3445ce5c960cba5684e44a701f8f76185dbb048402"
+  },
+  "nodeGroups": [],
+  "id": "qChBoPy1xLsRxF3h",
+  "tags": []
+}

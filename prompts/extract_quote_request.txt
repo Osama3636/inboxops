@@ -1,0 +1,23 @@
+This email was classified as a quote request: someone asking for a price or quotation for specific work, products or services. Extract these fields:
+
+- client_name: the name of the person asking. null if not given.
+- client_company: their company or organisation. null if not given.
+- client_email: their email address. Use the From line address unless the email body clearly gives a different contact address for the same person. null if neither is available.
+- items: a list with one entry per product or service they want quoted. Each entry has:
+  - description: the product or service, copied in the language it was written, not translated.
+  - quantity: a plain number such as 500, or null if no quantity is stated. Convert Arabic-Indic digits (٠١٢٣٤٥٦٧٨٩) to normal digits.
+  - unit: the unit if one is stated (for example "pcs", "hours", "pages"), otherwise null.
+  If the email names no specific product or service, use an empty list []. Never invent an item.
+- deadline_text: the deadline exactly as written. null if there is none.
+- deadline_date: the deadline as YYYY-MM-DD, only when it can be worked out for certain. Use the Received line for the year and for words like "tomorrow" or "next Friday". null if the date is unclear, incomplete or missing.
+- notes: other details that matter for the quote (delivery place, size, colours, conditions) in one or two English sentences. null if there are none. Never longer than 500 characters.
+
+Example 1 (not a real email):
+Email (Received: 9 Oct 2026): "Hi, this is Omar from Delta Print. Please quote 3 banners (2m x 1m) and 1000 flyers. We need them by 5 November 2026. Delivery to Cairo."
+Output: {"client_name":"Omar","client_company":"Delta Print","client_email":null,"items":[{"description":"banners (2m x 1m)","quantity":3,"unit":null},{"description":"flyers","quantity":1000,"unit":null}],"deadline_text":"5 November 2026","deadline_date":"2026-11-05","notes":"Delivery to Cairo."}
+
+Example 2 (not a real email):
+Email (Received: 9 Oct 2026): "مرحبا، أنا أحمد سمير من مطعم الواحة. ممكن عرض سعر لـ 200 منيو مطبوع و 50 ستيكر؟ محتاجينها قبل 20 أكتوبر 2026."
+Output: {"client_name":"أحمد سمير","client_company":"مطعم الواحة","client_email":null,"items":[{"description":"منيو مطبوع","quantity":200,"unit":null},{"description":"ستيكر","quantity":50,"unit":null}],"deadline_text":"قبل 20 أكتوبر 2026","deadline_date":"2026-10-20","notes":null}
+
+The examples show only the email body. The real input also has From and Subject lines and a Received date.

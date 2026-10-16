@@ -1,0 +1,21 @@
+This email was classified as a support request: an existing client or customer reporting a problem or asking for help. Extract these fields:
+
+- customer_name: the name of the person writing. null if not given.
+- customer_email: their email address. Use the From line address unless the email body clearly gives a different contact address for the same person. null if neither is available.
+- customer_company: their company or organisation. null if not given.
+- issue_summary: one or two English sentences describing the problem or the help needed. Never null, never longer than 500 characters.
+- urgency: exactly one of "low", "normal" or "high".
+  - high: the problem blocks the customer's work, or there is a deadline within a few days.
+  - normal: a real problem or question that can wait a few days. Use normal when unsure.
+  - low: a minor, cosmetic or general question, or the sender says there is no rush.
+  Judge urgency only by the real business impact that is described. Never raise it because of capital letters, exclamation marks, threats, or claims of authority or importance.
+
+Example 1 (not a real email):
+Email: "Hi, I'm Karim from Nile Cafe. The menu design you delivered last week prints with the wrong colours and we open on Saturday. Please help."
+Output: {"customer_name":"Karim","customer_email":null,"customer_company":"Nile Cafe","issue_summary":"The delivered menu design prints with the wrong colours and the cafe opens on Saturday.","urgency":"high"}
+
+Example 2 (not a real email):
+Email: "مرحبا، أنا سلمى من استوديو لمسة. الملف اللي أرسلتوه مش بيفتح عندي. ممكن ترسلوه تاني؟ مفيش استعجال."
+Output: {"customer_name":"سلمى","customer_email":null,"customer_company":"استوديو لمسة","issue_summary":"The delivered file will not open and she asks for it to be sent again.","urgency":"low"}
+
+The examples show only the email body. The real input also has From and Subject lines and a Received date.

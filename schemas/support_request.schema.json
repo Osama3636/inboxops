@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "properties": {
+    "customer_name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 100
+    },
+    "customer_email": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 254
+    },
+    "customer_company": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 150
+    },
+    "issue_summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "urgency": {
+      "type": "string",
+      "enum": [
+        "low",
+        "normal",
+        "high"
+      ]
+    }
+  },
+  "required": [
+    "customer_name",
+    "customer_email",
+    "customer_company",
+    "issue_summary",
+    "urgency"
+  ],
+  "additionalProperties": false
+}

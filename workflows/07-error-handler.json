@@ -1,0 +1,91 @@
+{
+  "name": "07 - Error Handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "039a9e73-9bfa-4c5f-ad98-52989009807f",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Shape Error: keeps only short, safe fields from the error report.\n// Error messages can contain email text, so everything is cut short.\nconst d = $json;\nconst ex = d.execution || {};\nconst wf = d.workflow || {};\nconst err = ex.error || {};\nreturn {\n  json: {\n    workflow_name: String(wf.name ?? '').slice(0, 200),\n    workflow_id: String(wf.id ?? '').slice(0, 100),\n    execution_id: String(ex.id ?? '').slice(0, 100),\n    node_name: String(ex.lastNodeExecuted ?? '').slice(0, 200),\n    error_message: String(err.message ?? '').slice(0, 1000),\n    raw_json: JSON.stringify({ mode: ex.mode ?? null, url: ex.url ?? null })\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "4aa8421f-2f84-4f0f-9cdf-81b31dc94230",
+      "name": "Shape Error"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO error_log (workflow_name, workflow_id, execution_id, node_name, error_message, raw)\nVALUES ($1, $2, $3, $4, $5, $6::jsonb)\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.workflow_name, $json.workflow_id, $json.execution_id, $json.node_name, $json.error_message, $json.raw_json ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        448,
+        0
+      ],
+      "id": "02e8515c-c587-42e5-9ee8-c07dbd61a9e9",
+      "name": "Log Error",
+      "credentials": {
+        "postgres": {
+          "id": "MhZHDzAy64LfOvDJ",
+          "name": "InboxOps Postgres"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Shape Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Error": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5b6dcf44-35e3-4961-a015-310b9f23a462",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "71c7a54a33468da155a74a3445ce5c960cba5684e44a701f8f76185dbb048402"
+  },
+  "nodeGroups": [],
+  "id": "BhqDbmhf307Visch",
+  "tags": []
+}

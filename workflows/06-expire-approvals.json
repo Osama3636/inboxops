@@ -1,0 +1,72 @@
+{
+  "name": "06 - Expire Approvals",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "8f8fcb7b-d7cb-4c18-ada0-3d0fcc5b248e",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH expired AS (\n  UPDATE approvals\n  SET state = 'expired', decided_at = now()\n  WHERE state = 'pending' AND expires_at <= now()\n  RETURNING run_id\n)\nUPDATE agent_runs\nSET status = 'expired', finished_at = now()\nWHERE id IN (SELECT run_id FROM expired) AND status = 'awaiting_approval'\nRETURNING id, status;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "da045948-4a31-444b-9221-f4b0175710d7",
+      "name": "Expire Old Approvals",
+      "credentials": {
+        "postgres": {
+          "id": "MhZHDzAy64LfOvDJ",
+          "name": "InboxOps Postgres"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Expire Old Approvals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "53027934-fa7b-456f-a28a-48b29846f04f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "71c7a54a33468da155a74a3445ce5c960cba5684e44a701f8f76185dbb048402"
+  },
+  "nodeGroups": [],
+  "id": "jO6BiJ5K4ZhUsQ4r",
+  "tags": []
+}

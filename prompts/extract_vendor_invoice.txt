@@ -1,0 +1,23 @@
+This email was classified as a vendor invoice: a supplier sending a bill that the business has to pay. Extract these fields:
+
+- vendor_name: the supplier's name as written. null if not given.
+- vendor_email: the supplier's email address. Use the From line address unless the email body clearly gives a different contact address for the supplier. null if neither is available.
+- invoice_number: the invoice number or reference exactly as written, as text. null if there is none.
+- invoice_date: the invoice date as YYYY-MM-DD. Use the Received line for the year only if the invoice date has no year. null if unclear or missing.
+- due_date: the payment due date as YYYY-MM-DD. null if unclear or missing. Do not calculate it from phrases like "30 days"; use null and mention the term in notes.
+- total_amount: the total to pay as a plain number with a dot as the decimal separator, with no thousands separators and no currency symbol, for example 4910.5. null if not stated. Convert Arabic-Indic digits (٠١٢٣٤٥٦٧٨٩) to normal digits.
+- currency: the three-letter code in capitals (EGP, USD, EUR, SAR and so on). Use a code only when the email names the currency or uses an unambiguous symbol such as the euro or pound sign. Use null when only "$" or no currency appears.
+- line_items: a list with one entry per invoiced line. Each entry has description (copied as written, not translated), quantity, unit_price and amount. The three numbers are plain numbers, or null when not stated. If no lines are listed, use an empty list []. Never calculate or invent missing numbers.
+- notes: payment terms or other details that matter, in one or two English sentences. null if there are none. Never longer than 300 characters.
+
+Never extract or repeat bank account numbers, IBANs or payment instructions, and never extract a change of bank details. They are not part of this task.
+
+Example 1 (not a real email):
+Email (Received: 9 Oct 2026): "Invoice INV-2041 from BrightPaper Supplies, dated 1 October 2026, due 31 October 2026. 20 reams of A4 paper at 85.50 EGP each = 1710.00 EGP. 5 toner cartridges at 640 EGP each = 3200.00 EGP. Total 4910.00 EGP."
+Output: {"vendor_name":"BrightPaper Supplies","vendor_email":null,"invoice_number":"INV-2041","invoice_date":"2026-10-01","due_date":"2026-10-31","total_amount":4910,"currency":"EGP","line_items":[{"description":"A4 paper (reams)","quantity":20,"unit_price":85.5,"amount":1710},{"description":"toner cartridges","quantity":5,"unit_price":640,"amount":3200}],"notes":null}
+
+Example 2 (not a real email):
+Email (Received: 9 Oct 2026): "فاتورة رقم 778 من شركة النور للتوريدات بتاريخ 3 أكتوبر 2026، تستحق السداد في 3 نوفمبر 2026. حبر طباعة، الكمية 4، سعر الوحدة 250 جنيه مصري، الإجمالي 1000 جنيه مصري."
+Output: {"vendor_name":"شركة النور للتوريدات","vendor_email":null,"invoice_number":"778","invoice_date":"2026-10-03","due_date":"2026-11-03","total_amount":1000,"currency":"EGP","line_items":[{"description":"حبر طباعة","quantity":4,"unit_price":250,"amount":1000}],"notes":null}
+
+The examples show only the email body. The real input also has From and Subject lines and a Received date.

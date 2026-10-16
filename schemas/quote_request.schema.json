@@ -1,0 +1,92 @@
+{
+  "type": "object",
+  "properties": {
+    "client_name": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 100
+    },
+    "client_company": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 150
+    },
+    "client_email": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 254
+    },
+    "items": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "quantity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 30
+          }
+        },
+        "required": [
+          "description",
+          "quantity",
+          "unit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "deadline_text": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 100
+    },
+    "deadline_date": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
+    }
+  },
+  "required": [
+    "client_name",
+    "client_company",
+    "client_email",
+    "items",
+    "deadline_text",
+    "deadline_date",
+    "notes"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,386 @@
+{
+  "name": "05 - Rollback Run",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "742755d3-43d5-4cbe-84a6-76ea58eb1e3b",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        192
+      ],
+      "id": "a36e82f3-c61f-4f0a-8f45-2b47f28216d8",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "838c7a16-1f1e-436f-bec2-4decbd0b39db",
+              "name": "run_id",
+              "value": 0,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        192
+      ],
+      "id": "ce6e574d-56eb-4ebb-9e06-827bc079cc91",
+      "name": "Manual Run Input"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id AS run_id, odoo_records\nFROM agent_runs\nWHERE id = $1::bigint AND status = 'executed';",
+        "options": {
+          "queryReplacement": "={{ [ $json.run_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        432,
+        64
+      ],
+      "id": "ec34308b-28b3-46ee-9f85-d567e7b1afed",
+      "name": "Load Records",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "MhZHDzAy64LfOvDJ",
+          "name": "InboxOps Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "9574704f-f755-4a44-bd55-90e95398ff84",
+              "leftValue": "={{ $json.run_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        656,
+        64
+      ],
+      "id": "ebc7b14b-e6bb-447a-bd21-3ba87718ffd7",
+      "name": "Rollbackable?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        880,
+        160
+      ],
+      "id": "8b3a3d83-7d32-40b1-be7e-aee6233621da",
+      "name": "Nothing To Roll Back"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Plan Rollback: turns the stored list of created records into archive calls.\nconst SUPPORTED = ['crm.lead'];\n\nconst row = $input.first().json;\nconst records = row.odoo_records;\n\nif (!Array.isArray(records) || records.length !== 1) {\n  throw new Error('Rollback expects exactly one created record for this run');\n}\n\nreturn records.map(rec => {\n  if (!SUPPORTED.includes(rec.model)) {\n    throw new Error('Rollback is not supported yet for ' + rec.model);\n  }\n  if (!Number.isInteger(rec.id) || rec.id <= 0) {\n    throw new Error('Invalid record id in the run');\n  }\n  return {\n    json: {\n      run_id: String(row.run_id),\n      model: rec.model,\n      id: rec.id,\n      body: { ids: [rec.id], vals: { active: false } }\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "id": "4275904a-c960-4a28-bd9c-ecf4e5acacb1",
+      "name": "Plan Rollback"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ODOO_BASE_URL }}/json/2/{{ $json.model }}/write",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Odoo-Database",
+              "value": "={{ $env.ODOO_DB_NAME }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1104,
+        0
+      ],
+      "id": "93b1ea0e-4de3-4300-98ac-505309a56bbc",
+      "name": "Odoo Archive",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "hrUVqAONw9zLBmqb",
+          "name": "InboxOps Odoo (Bearer)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Prepare Rolled Back: checks that Odoo confirmed the archive.\nconst step = $('Plan Rollback').item.json;\nlet result;\ntry {\n  result = JSON.parse($json.data);\n} catch (e) {\n  throw new Error('Odoo answer was not valid JSON');\n}\nif (result !== true) {\n  throw new Error('Odoo did not confirm the archive');\n}\nreturn { json: { run_id: step.run_id } };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        -112
+      ],
+      "id": "54376933-8e2c-4107-96df-418daa2a917e",
+      "name": "Prepare Rolled Back"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE agent_runs\nSET status = 'rolled_back', error_message = NULL\nWHERE id = $1::bigint AND status = 'executed'\nRETURNING id, status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.run_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1552,
+        -112
+      ],
+      "id": "f29ee95f-adee-4176-bbe6-8c84ab6fcf10",
+      "name": "Mark Rolled Back",
+      "credentials": {
+        "postgres": {
+          "id": "MhZHDzAy64LfOvDJ",
+          "name": "InboxOps Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Prepare Rollback Failure: records why the rollback did not complete.\nconst step = $('Plan Rollback').item.json;\nconst e = $json.error;\nconst msg = typeof e === 'string' ? e : (e && e.message ? e.message : JSON.stringify(e || $json));\nreturn {\n  json: {\n    run_id: step.run_id,\n    error_message: ('Rollback incomplete: ' + msg).slice(0, 500)\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        64
+      ],
+      "id": "e89c780d-ffd4-4b68-b34f-21d03e535404",
+      "name": "Prepare Rollback Failure"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE agent_runs\nSET error_message = $2\nWHERE id = $1::bigint AND status = 'executed'\nRETURNING id, status, error_message;",
+        "options": {
+          "queryReplacement": "={{ [ $json.run_id, $json.error_message ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1552,
+        64
+      ],
+      "id": "fec802ba-54dd-49ff-b7f3-fad58c8ed44d",
+      "name": "Mark Rollback Failed",
+      "credentials": {
+        "postgres": {
+          "id": "MhZHDzAy64LfOvDJ",
+          "name": "InboxOps Postgres"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Manual Run Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Run Input": {
+      "main": [
+        [
+          {
+            "node": "Load Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Load Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Records": {
+      "main": [
+        [
+          {
+            "node": "Rollbackable?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rollbackable?": {
+      "main": [
+        [
+          {
+            "node": "Plan Rollback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nothing To Roll Back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Rollback": {
+      "main": [
+        [
+          {
+            "node": "Odoo Archive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Odoo Archive": {
+      "main": [
+        [
+          {
+            "node": "Prepare Rolled Back",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Rollback Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Rolled Back": {
+      "main": [
+        [
+          {
+            "node": "Mark Rolled Back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Rolled Back": {
+      "main": [
+        []
+      ]
+    },
+    "Prepare Rollback Failure": {
+      "main": [
+        [
+          {
+            "node": "Mark Rollback Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "194fcc65-4f91-4ce6-aac2-d3011c4ba7ec",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "71c7a54a33468da155a74a3445ce5c960cba5684e44a701f8f76185dbb048402"
+  },
+  "nodeGroups": [],
+  "id": "2eZB4NxQBW7SwMTi",
+  "tags": []
+}

@@ -1,0 +1,294 @@
+{
+  "name": "03 - Approval Decision",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "68bc9757-25d6-45a6-a813-9e5264c4b277",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "136e9767-a379-4afd-8d3e-67e4bbe452b5",
+              "name": "run_id",
+              "value": 15,
+              "type": "number"
+            },
+            {
+              "id": "65210edf-8b1d-4814-9ad9-5dbf04210671",
+              "name": "decision",
+              "value": "approved",
+              "type": "string"
+            },
+            {
+              "id": "08072d30-3897-442b-b6d5-02e00868a531",
+              "name": "approver",
+              "value": "owner (manual)",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "8f9f9c1f-2c7a-431b-9414-34a5589fa449",
+      "name": "Decision Input"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH target AS (\n  SELECT a.id AS approval_id\n  FROM approvals a\n  WHERE a.run_id = $1\n    AND a.state = 'pending'\n    AND a.expires_at > now()\n    AND $2::text IN ('approved', 'rejected')\n  ORDER BY a.id DESC\n  LIMIT 1\n),\nupd_approval AS (\n  UPDATE approvals\n  SET state = $2::text,\n      approver = $3::text,\n      decided_at = now(),\n      final_action = CASE\n        WHEN $2::text = 'approved' THEN (SELECT proposed_action FROM agent_runs WHERE id = $1)\n        ELSE NULL\n      END\n  WHERE id = (SELECT approval_id FROM target)\n  RETURNING run_id\n)\nUPDATE agent_runs\nSET status = $2::text\nWHERE id IN (SELECT run_id FROM upd_approval)\n  AND status = 'awaiting_approval'\nRETURNING id, status;",
+        "options": {
+          "queryReplacement": "={{ [ $json.run_id, $json.decision, $json.approver ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        448,
+        0
+      ],
+      "id": "4c84be96-51e8-4b46-be22-9230cc204f0b",
+      "name": "Record Decision",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "MhZHDzAy64LfOvDJ",
+          "name": "InboxOps Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6ed2371e-4b50-4553-a09f-1c1c554111ca",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        0
+      ],
+      "id": "add4547e-94eb-4c2c-8bbd-a6fed4458363",
+      "name": "Recorded?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        896,
+        80
+      ],
+      "id": "52b6937f-cbad-4009-b73a-e4e0b4fa6540",
+      "name": "Nothing Recorded"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "dbea38fd-9ca6-44d9-87a3-90da4f91967d",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "approved",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        896,
+        -96
+      ],
+      "id": "a24fb2e7-b377-4a9f-b2c5-2f39e4ef3ef0",
+      "name": "Approved?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "aca62950-f61b-4e5a-b269-c3b4f4aa2ad4",
+              "name": "run_id",
+              "value": "={{ $json.id }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1120,
+        -176
+      ],
+      "id": "f36c08ec-621b-4bde-a189-47fabf365e39",
+      "name": "To Executor"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "qChBoPy1xLsRxF3h",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/qChBoPy1xLsRxF3h",
+          "cachedResultName": "04 - Execute Approved Action"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.4,
+      "position": [
+        1344,
+        -176
+      ],
+      "id": "fa6e7dd3-e761-454b-85cf-a518371d93f2",
+      "name": "Run WF4 Execution"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Decision Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decision Input": {
+      "main": [
+        [
+          {
+            "node": "Record Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Decision": {
+      "main": [
+        [
+          {
+            "node": "Recorded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recorded?": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Nothing Recorded",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "To Executor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "To Executor": {
+      "main": [
+        [
+          {
+            "node": "Run WF4 Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "71c4ca24-8b5f-4f3f-a862-13a7ea7378b3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "71c7a54a33468da155a74a3445ce5c960cba5684e44a701f8f76185dbb048402"
+  },
+  "nodeGroups": [],
+  "id": "D6TfklBC5Bxunm69",
+  "tags": []
+}
